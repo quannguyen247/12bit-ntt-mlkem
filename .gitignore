@@ -1,0 +1,16 @@
+.venv/
+dfx_runtime.txt
+Implementation/*.log
+Implementation/*.jou
+Implementation/*.str
+Implementation/logs/*
+Implementation/NTT.cache/
+Implementation/NTT.hw/
+Implementation/NTT.ip_user_files/
+Implementation/NTT.sim/
+Implementation/NTT.runs/
+Implementation/NTT.srcs/
+Implementation/NTT.ioplanning/
+Implementation/testbench/result.log
+Implementation/vectors/*
+!Implementation/vectors/test_vectors.py
