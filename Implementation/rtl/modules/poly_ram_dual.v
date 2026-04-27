@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-// Dual-read, single-write synchronous poly RAM
+// Dual-read, single-write asynchronous poly RAM (CẤM BRAM - DÙNG LUTRAM/REGFILE)
 module poly_ram_dual #(
     parameter DEPTH = 256,
     parameter ADDR_WIDTH = 8
@@ -11,25 +11,30 @@ module poly_ram_dual #(
     input  wire [ADDR_WIDTH-1:0] addr_rd0,
     input  wire [ADDR_WIDTH-1:0] addr_rd1,
     input  wire [11:0]          din,
-    output reg  [11:0]          dout0,
-    output reg  [11:0]          dout1
+    output wire [11:0]          dout0,  // Đổi thành wire
+    output wire [11:0]          dout1   // Đổi thành wire
 );
+
+    // Khai báo bộ nhớ (Register File)
     reg [11:0] mem [0:DEPTH-1];
-    integer i;
 
-    // Write port (synchronous)
-    always @(posedge clk) begin
-        if (we) mem[addr_wr] <= din;
+`ifndef SYNTHESIS
+    initial begin
+        $readmemh("build/vec_in.mem", mem);
     end
+`endif
 
-    // Explicit combinational read-mux to discourage BRAM inference
-    always @(*) begin
-        dout0 = {12{1'b0}};
-        dout1 = {12{1'b0}};
-        for (i = 0; i < DEPTH; i = i + 1) begin
-            if (addr_rd0 == i) dout0 = mem[i];
-            if (addr_rd1 == i) dout1 = mem[i];
+    // Ghi đồng bộ (Luôn phải có xung nhịp để cập nhật giá trị vào thanh ghi)
+    always @(posedge clk) begin
+        if (we) begin
+            mem[addr_wr] <= din;
         end
     end
+
+    // ĐỌC TỔ HỢP TRỰC TIẾP (Asynchronous Read)
+    // Cách viết này báo cho Vivado biết đây là cấu trúc Memory Array, 
+    // không phải một mớ logic hỗn độn.
+    assign dout0 = mem[addr_rd0];
+    assign dout1 = mem[addr_rd1];
 
 endmodule

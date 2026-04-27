@@ -1,4 +1,4 @@
-create_clock -period 4.000 -name sys_clk [get_ports clk]
+create_clock -period 5.000 -name sys_clk [get_ports clk]
 
 set_switching_activity -default_toggle_rate 50.000
 set_switching_activity -toggle_rate 50.000 -type {lut} -static_probability 0.500 -all 
