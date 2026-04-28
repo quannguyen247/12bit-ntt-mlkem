@@ -33,7 +33,7 @@ module ntt_core_top (
 
     reg advance_r; // Tín hiệu kích FSM nhảy bước
 
-    ntt_fsm u_fsm (
+    ntt_controller u_controller (
         .clk      (clk),
         .rst_n    (rst_n),
         .start    (start),

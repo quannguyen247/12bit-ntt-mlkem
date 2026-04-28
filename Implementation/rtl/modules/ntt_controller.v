@@ -1,7 +1,7 @@
 `timescale 1ns / 1ps
 
 // Control FSM for NTT core. Produces len/pos/zidx/cnt counters.
-module ntt_fsm (
+module ntt_controller (
     input  wire        clk,
     input  wire        rst_n,
     input  wire        start,
