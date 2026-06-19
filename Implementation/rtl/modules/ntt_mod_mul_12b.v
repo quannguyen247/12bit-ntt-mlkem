@@ -8,21 +8,16 @@ module ntt_mod_mul_12b (
     output reg [11:0] r_o
 );
 
-    reg [23:0] t_reg;
+    reg [23:0] t_reg, t_reg_d1;
     reg [15:0] m_reg;
-    reg [23:0] t_reg_d1;
     reg [28:0] t_plus_reg;
 
     (* use_dsp = "no" *) wire [23:0] t_comb;
-    wire [15:0] t_16;
-    wire [15:0] p1_m;
-    wire [15:0] p2_m;
-    wire [15:0] m_comb;
-    wire [28:0] m_29;
-    wire [28:0] p1_mq;
-    wire [28:0] p2_mq;
-    wire [28:0] mq_comb;
-    wire [28:0] t_plus_comb;
+
+    wire [15:0] t_16, p1_m, p2_m, m_comb;
+
+    wire [28:0] m_29, p1_mq, p2_mq, mq_comb, t_plus_comb;
+
     wire [12:0] u_comb;
     wire [13:0] sub_val;
     wire is_negative;

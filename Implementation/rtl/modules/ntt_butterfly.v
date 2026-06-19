@@ -15,10 +15,11 @@ module ntt_butterfly (
 
     reg [11:0] a_st1, b_st1, zeta_st1;
     reg v1;
+
     reg [11:0] a_st2, a_st3, a_st4, a_st5;
     reg v2, v3, v4, v5;
-    wire [11:0] mod_mul_out;
-    wire [11:0] add_tmp, sub_tmp;
+
+    wire [11:0] mod_mul_out, add_tmp, sub_tmp;
 
     ntt_mod_mul_12b u_mul (
         .clk(clk),

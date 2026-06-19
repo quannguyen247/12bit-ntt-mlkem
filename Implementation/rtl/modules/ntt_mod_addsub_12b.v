@@ -10,9 +10,7 @@ module ntt_mod_addsub_12b (
 
     localparam [12:0] Q = 13'd3329;
 
-    wire [12:0] sum;
-    wire [12:0] add_tmp;
-    wire [12:0] diff;
+    wire [12:0] sum, add_tmp, diff;
 
     assign sum = {1'b0, a_i} + {1'b0, b_i};
     assign add_tmp = (sum >= Q) ? (sum - Q) : sum;
