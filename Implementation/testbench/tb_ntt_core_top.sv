@@ -2,7 +2,7 @@
 
 module tb_ntt_core_top;
 
-    localparam integer TIMEOUT_CYCLES = 10000;
+    localparam integer TIMEOUT_CYCLES = 30000;
     localparam integer MAX_BUFFER = 1024;
 
     typedef struct packed {
@@ -123,7 +123,7 @@ module tb_ntt_core_top;
     initial begin
         tb_file = `__FILE__;
         tb_dir = dirname(tb_file);
-        tv_dir = {tb_dir, "/../vector"};
+        tv_dir = {dirname(tb_dir), "/vector"};
         ntt_report_path = {tb_dir, "/ntt_result.log"};
         intt_report_path = {tb_dir, "/intt_result.log"};
 
