@@ -100,9 +100,14 @@ module ntt_core_top (
         .d_out(zeta_d)
     );
 
+    wire is_scale;
+    assign is_scale = (fstate == 2'd2);
+
     ntt_butterfly u_bf (
         .clk(clk),
         .rst_n(rst_n),
+        .mode(mode),
+        .is_scale(is_scale),
         .a_i(mem_dout0),
         .b_i(mem_dout1),
         .zeta_i(zeta_d),
@@ -143,7 +148,12 @@ module ntt_core_top (
                         mem_we <= 1'b1;
                         mem_wr_addr <= addr_a;
                         mem_wr_data <= bf_out0;
-                        pstate <= ST_WRITE1;
+                        if (is_scale) begin
+                            advance_r <= 1'b1;
+                            pstate <= ST_WAIT_AGU;
+                        end else begin
+                            pstate <= ST_WRITE1;
+                        end
                     end
                 end
                 ST_WRITE1: begin
