@@ -83,6 +83,7 @@ module ntt_controller (
                             state <= ST_IDLE;
                         end else begin
                             cnt <= cnt + 8'd1;
+                            pos <= pos + 8'd1;
                         end
                     end
                 end
