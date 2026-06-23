@@ -1,38 +1,47 @@
 import hashlib
+import random
 import re
 import sys
 from pathlib import Path
 
 Q = 3329
 R = 1 << 16
-RINV = pow(R, -1, Q)
+R_INV = pow(R, -1, Q)
 
-def parse_twiddles(path):
-    txt = Path(path).read_text(errors="ignore")
+TWIDDLE_PATTERN = re.compile(
+    r"7'd(\d+)\s*:\s*val\s*=\s*\{\s*(-?)\s*16'sd(\d+)\s*,\s*(-?)\s*16'sd(\d+)\s*\}\s*;"
+)
+
+
+def parse_twiddles(path: Path) -> tuple:
+    txt = path.read_text(errors="ignore")
     zetas = [None] * 128
     zetas_inv = [None] * 128
 
-    pat = re.compile(r"7'd(\d+)\s*:\s*val\s*=\s*\{\s*(-?)\s*16'sd(\d+)\s*,\s*(-?)\s*16'sd(\d+)\s*\}\s*;")
-    for m in pat.finditer(txt):
+    for m in TWIDDLE_PATTERN.finditer(txt):
         idx = int(m.group(1))
         if idx < 128:
             fwd_val = int(m.group(3))
-            if m.group(2) == "-": fwd_val = -fwd_val
+            if m.group(2) == "-":
+                fwd_val = -fwd_val
             zetas[idx] = fwd_val % Q
 
             inv_val = int(m.group(5))
-            if m.group(4) == "-": inv_val = -inv_val
+            if m.group(4) == "-":
+                inv_val = -inv_val
             zetas_inv[idx] = inv_val % Q
 
-    bad = [i for i, v in enumerate(zetas) if v is None]
-    if bad:
-        raise RuntimeError(f"missing twiddle entries: {bad[:10]}")
+    missing = [i for i, v in enumerate(zetas) if v is None]
+    if missing:
+        raise RuntimeError(f"Missing twiddle entries: {missing[:10]}")
     return zetas, zetas_inv
 
-def fqmul(a, b):
-    return (a * b * RINV) % Q
 
-def ntt_ref(a, zetas):
+def fqmul(a: int, b: int) -> int:
+    return (a * b * R_INV) % Q
+
+
+def ntt_ref(a: list, zetas: list) -> list:
     r = a[:]
     k = 1
     length = 128
@@ -49,7 +58,8 @@ def ntt_ref(a, zetas):
         length >>= 1
     return r
 
-def intt_ref(a, zetas_inv):
+
+def intt_ref(a: list, zetas_inv: list) -> list:
     r = a[:]
     k = 0
     length = 2
@@ -69,50 +79,77 @@ def intt_ref(a, zetas_inv):
         r[j] = fqmul(r[j], f)
     return r
 
-def coeffs_from_seed(seed):
+
+def coeffs_from_seed(seed: int) -> list:
     buf = hashlib.shake_256(str(seed).encode()).digest(512)
     return [(buf[2 * i] | (buf[2 * i + 1] << 8)) % Q for i in range(256)]
 
+
+def poly_to_hex(poly: list) -> str:
+    return "".join(f"{poly[i] & 0xFFF:03x}" for i in range(255, -1, -1))
+
+
+def make_edge_cases() -> list:
+    return [
+        ([0] * 256, "all-zero"),
+        ([Q - 1] * 256, "all-max (Q-1)"),
+        ([1] + [0] * 255, "unit-impulse"),
+    ]
+
+
 def main():
-    import random
     vectors_dir = Path(__file__).resolve().parent
-    
-    num_cases = 20
+
+    num_random = 20
     if len(sys.argv) > 1:
         if sys.argv[1].lower() == "clear":
             for name in ["tv_all.mem", "tv_spec.txt"]:
                 p = vectors_dir / name
-                if p.exists(): p.unlink()
+                if p.exists():
+                    p.unlink()
             print("Cleared vectors.")
             return 0
         try:
-            num_cases = int(sys.argv[1])
+            num_random = int(sys.argv[1])
         except ValueError:
-            print(f"Warning: Invalid number of cases '{sys.argv[1]}'. Defaulting to 20.")
-            num_cases = 20
+            print(f"Warning: Invalid '{sys.argv[1]}', defaulting to 20.")
+            num_random = 20
 
     ntt_funcs_path = vectors_dir.parent / "rtl" / "utils" / "ntt_funcs.vh"
     zetas, zetas_inv = parse_twiddles(ntt_funcs_path)
+    print(f"Parsed 128 twiddle pairs from {ntt_funcs_path.name}")
 
     cases = []
-    for i in range(1, num_cases + 1):
+
+    for poly, label in make_edge_cases():
+        ntt = ntt_ref(poly, zetas)
+        intt = intt_ref(ntt, zetas_inv)
+        assert all(0 <= c < Q for c in ntt), f"NTT out of range for '{label}'"
+        assert all(0 <= c < Q for c in intt), f"INTT out of range for '{label}'"
+        cases.append((poly, ntt, intt))
+        print(f"  Edge case: {label}")
+
+    for i in range(1, num_random + 1):
         random.seed(i)
-        case_seed = random.randint(0, 1000000000)
+        case_seed = random.randint(0, 1_000_000_000)
         poly = coeffs_from_seed(case_seed)
         ntt = ntt_ref(poly, zetas)
         intt = intt_ref(ntt, zetas_inv)
+        assert all(0 <= c < Q for c in ntt), f"NTT out of range for case {i}"
+        assert all(0 <= c < Q for c in intt), f"INTT out of range for case {i}"
         cases.append((poly, ntt, intt))
 
+    total = len(cases)
     with open(vectors_dir / "tv_all.mem", "w") as f:
         for poly, ntt, intt in cases:
-            poly_hex = "".join(f"{poly[i] & 0xfff:03x}" for i in range(255, -1, -1))
-            ntt_hex = "".join(f"{ntt[i] & 0xfff:03x}" for i in range(255, -1, -1))
-            intt_hex = "".join(f"{intt[i] & 0xfff:03x}" for i in range(255, -1, -1))
-            f.write(f"{intt_hex}{ntt_hex}{poly_hex}\n")
+            f.write(f"{poly_to_hex(intt)}{poly_to_hex(ntt)}{poly_to_hex(poly)}\n")
 
-    (vectors_dir / "tv_spec.txt").write_text(f"tv_count={num_cases}\n")
-    print(f"Generated {num_cases} vectors in {vectors_dir}")
+    (vectors_dir / "tv_spec.txt").write_text(f"tv_count={total}\n")
+    print(f"\nGenerated {total} vectors ({len(make_edge_cases())} edge + {num_random} random)")
+    print(f"  -> {vectors_dir / 'tv_all.mem'}")
+    print(f"  -> {vectors_dir / 'tv_spec.txt'}")
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())
