@@ -16,9 +16,9 @@ module ntt_controller (
     output reg [7:0] cnt
 );
 
-    localparam [1:0] ST_IDLE = 2'd0;
-    localparam [1:0] ST_RUN = 2'd1;
-    localparam [1:0] ST_SCALE = 2'd2;
+    localparam ST_IDLE = 2'd0;
+    localparam ST_RUN = 2'd1;
+    localparam ST_SCALE = 2'd2;
 
     always @(posedge clk) begin
         if (!rst_n) begin
@@ -51,7 +51,6 @@ module ntt_controller (
                         end else begin
                             pos <= pos + 8'd1;
                         end
-
                         if (cnt == 8'd127) begin
                             cnt <= 8'd0;
                             pos <= 8'd0;
