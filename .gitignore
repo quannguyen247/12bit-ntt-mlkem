@@ -1,2 +1,41 @@
-Implementation/KV260.*
-!Implementation/KV260.xpr
+# Vivado temporary files
+.Xil/
+Implementation/.Xil/
+Implementation/*.log
+Implementation/*.jou
+Implementation/*.str
+Implementation/logs/
+Implementation/NTT.cache/
+Implementation/NTT.hw/
+Implementation/NTT.ip_user_files/
+Implementation/NTT.sim/
+Implementation/NTT.runs/
+Implementation/NTT.ioplanning/
+
+# Simulation outputs & logs
+build/
+work/
+transcript
+vsim.wlf
+*.wlf
+xsim.dir/
+xsim.log
+xsim.jou
+webtalk*
+Implementation/testbench/ntt_result.log
+Implementation/testbench/intt_result.log
+
+# Generated test vectors
+Implementation/vector/*
+!Implementation/vector/ntt_gen.py
+
+# Python virtual environment
+.venv/
+__pycache__/
+*.pyc
+
+# DFX
+dfx_runtime.txt
+
+# References
+form(donotedit)/
