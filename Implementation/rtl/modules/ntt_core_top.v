@@ -14,36 +14,51 @@ module ntt_core_top (
     output wire done
 );
 
-    wire [1:0] fstate;
-    wire f_busy, f_done;
+    localparam ST_WAIT_AGU = 2'd0;
+    localparam ST_FIRE = 2'd1;
+    localparam ST_WAIT_BF = 2'd2;
+    localparam ST_WRITE_B = 2'd3;
+
+    reg [1:0] pstate;
     reg advance_r;
+    reg bf_valid_in;
 
-    wire [7:0] len, pos, zidx, cnt;
-    wire [7:0] addr_a, addr_b;
-
-    wire [11:0] mem_dout0, mem_dout1;
     reg mem_we;
     reg [7:0] mem_wr_addr;
     reg [11:0] mem_wr_data;
 
-    wire ram_we;
-    wire [7:0] ram_addr_wr, ram_addr_rd;
-    wire [11:0] ram_din;
+    wire [1:0] fstate;
+    wire f_busy, f_done;
+    wire [7:0] len;
+    wire [7:0] pos;
+    wire [7:0] zidx;
+    wire [7:0] cnt;
+    wire is_scale;
+
+    wire [7:0] addr_a;
+    wire [7:0] addr_b;
 
     wire [11:0] zeta_d;
 
-    wire [11:0] bf_out0, bf_out1;
-    reg bf_valid_in;
+    wire [11:0] bf_out0;
+    wire [11:0] bf_out1;
     wire bf_valid_out;
 
-    localparam [2:0] ST_WAIT_AGU = 3'd0;
-    localparam [2:0] ST_READ_MEM = 3'd1;
-    localparam [2:0] ST_FIRE = 3'd2;
-    localparam [2:0] ST_WAIT_BF = 3'd3;
-    localparam [2:0] ST_WRITE0 = 3'd4;
-    localparam [2:0] ST_WRITE1 = 3'd5;
+    wire ram_we;
+    wire [7:0] ram_addr_wr;
+    wire [7:0] ram_addr_rd;
+    wire [11:0] ram_din;
+    wire [11:0] mem_dout0;
+    wire [11:0] mem_dout1;
 
-    reg [2:0] pstate;
+    assign busy = f_busy;
+    assign done = f_done;
+    assign ram_we = f_busy ? mem_we : ext_we;
+    assign ram_addr_wr = f_busy ? mem_wr_addr : ext_addr;
+    assign ram_addr_rd = f_busy ? addr_a : ext_addr;
+    assign ram_din = f_busy ? mem_wr_data : ext_din;
+    assign ext_dout = mem_dout0;
+    assign is_scale = (fstate == 2'd2);
 
     ntt_controller u_controller (
         .clk(clk),
@@ -60,9 +75,6 @@ module ntt_core_top (
         .cnt(cnt)
     );
 
-    assign busy = f_busy;
-    assign done = f_done;
-
     ntt_agu u_agu (
         .clk(clk),
         .rst_n(rst_n),
@@ -73,12 +85,6 @@ module ntt_core_top (
         .addr_a(addr_a),
         .addr_b(addr_b)
     );
-
-    assign ram_we = f_busy ? mem_we : ext_we;
-    assign ram_addr_wr = f_busy ? mem_wr_addr : ext_addr;
-    assign ram_addr_rd = f_busy ? addr_a : ext_addr;
-    assign ram_din = f_busy ? mem_wr_data : ext_din;
-    assign ext_dout = mem_dout0;
 
     poly_ram_dual #(
         .DEPTH(256),
@@ -99,9 +105,6 @@ module ntt_core_top (
         .is_inv(mode),
         .d_out(zeta_d)
     );
-
-    wire is_scale;
-    assign is_scale = (fstate == 2'd2);
 
     ntt_butterfly u_bf (
         .clk(clk),
@@ -129,15 +132,11 @@ module ntt_core_top (
             mem_we <= 1'b0;
             advance_r <= 1'b0;
             bf_valid_in <= 1'b0;
-
             case (pstate)
                 ST_WAIT_AGU: begin
                     if (f_busy) begin
-                        pstate <= ST_READ_MEM;
+                        pstate <= ST_FIRE;
                     end
-                end
-                ST_READ_MEM: begin
-                    pstate <= ST_FIRE;
                 end
                 ST_FIRE: begin
                     bf_valid_in <= 1'b1;
@@ -152,11 +151,11 @@ module ntt_core_top (
                             advance_r <= 1'b1;
                             pstate <= ST_WAIT_AGU;
                         end else begin
-                            pstate <= ST_WRITE1;
+                            pstate <= ST_WRITE_B;
                         end
                     end
                 end
-                ST_WRITE1: begin
+                ST_WRITE_B: begin
                     mem_we <= 1'b1;
                     mem_wr_addr <= addr_b;
                     mem_wr_data <= bf_out1;

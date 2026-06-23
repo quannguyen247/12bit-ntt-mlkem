@@ -2,6 +2,7 @@
 
 module tb_ntt_core_top;
 
+    localparam integer CLK_PERIOD_NS = 5;
     localparam integer TIMEOUT_CYCLES = 30000;
     localparam integer MAX_BUFFER = 1024;
 
@@ -11,41 +12,71 @@ module tb_ntt_core_top;
         logic [255:0][11:0] poly;
     } test_vector_t;
 
-    logic clk, rst_n, start, mode, ext_we;
+    logic clk;
+    logic rst_n;
+    logic start;
+    logic mode;
+    logic ext_we;
     logic [7:0] ext_addr;
     logic [11:0] ext_din;
     logic [11:0] ext_dout;
-    logic busy, done;
+    logic busy;
+    logic done;
 
     test_vector_t vec_all [0:MAX_BUFFER-1];
     logic [639:0] line_buffer;
 
-    int tv_count_actual, case_idx, ntt_error_count, intt_error_count, ntt_report_fd, intt_report_fd, spec_fd;
+    int tv_count_actual;
+    int case_idx;
+    int ntt_error_count;
+    int intt_error_count;
+    int roundtrip_error_count;
+    int ntt_report_fd;
+    int intt_report_fd;
+    int spec_fd;
     logic timeout_flag;
 
+    string tb_file;
+    string tb_dir;
+    string tv_dir;
+    string ntt_report_path;
+    string intt_report_path;
+
+    function automatic string dirname(string path);
+        for (int i = path.len() - 1; i >= 0; i--)
+            if (path[i] == "/" || path[i] == "\\")
+                return path.substr(0, i - 1);
+        return ".";
+    endfunction
+
     ntt_core_top u_dut (
-        .clk(clk), .rst_n(rst_n), .start(start), .mode(mode),
-        .ext_we(ext_we), .ext_addr(ext_addr), .ext_din(ext_din), .ext_dout(ext_dout),
-        .busy(busy), .done(done)
+        .clk(clk),
+        .rst_n(rst_n),
+        .start(start),
+        .mode(mode),
+        .ext_we(ext_we),
+        .ext_addr(ext_addr),
+        .ext_din(ext_din),
+        .ext_dout(ext_dout),
+        .busy(busy),
+        .done(done)
     );
 
     initial begin
         clk = 1'b0;
-        forever #5 clk = ~clk;
+        forever #(CLK_PERIOD_NS / 2) clk = ~clk;
     end
 
-    task safe_wait(input integer mode_val);
+    task automatic wait_for_done();
     begin
         timeout_flag = 1'b0;
         fork : wait_block
             begin
-                case(mode_val)
-                    3: wait(done == 1'b1);
-                endcase
+                wait (done == 1'b1);
                 disable wait_block;
             end
             begin
-                repeat(TIMEOUT_CYCLES) @(posedge clk);
+                repeat (TIMEOUT_CYCLES) @(posedge clk);
                 timeout_flag = 1'b1;
                 disable wait_block;
             end
@@ -53,72 +84,168 @@ module tb_ntt_core_top;
     end
     endtask
 
-    task write_case_result(input integer idx, input integer is_intt, input integer passed);
+    task automatic load_polynomial(input logic [255:0][11:0] poly);
     begin
-        int fd;
-        fd = is_intt ? intt_report_fd : ntt_report_fd;
-        if (fd != 0) begin
-            $fwrite(fd, "Case %0d | %s\n", idx, passed ? "PASS" : "FAIL");
+        for (int j = 0; j < 256; j++) begin
+            @(posedge clk); #0.5;
+            ext_we = 1'b1;
+            ext_addr = j[7:0];
+            ext_din = poly[j];
+        end
+        @(posedge clk); #0.5;
+        ext_we = 1'b0;
+    end
+    endtask
+
+    task automatic read_polynomial(output logic [255:0][11:0] poly);
+    begin
+        for (int j = 0; j < 256; j++) begin
+            @(posedge clk); #0.5;
+            ext_addr = j[7:0];
+            #0.5;
+            poly[j] = ext_dout;
         end
     end
     endtask
 
-    task run_pass(input integer idx, input logic pass_mode, input logic [255:0][11:0] in_poly, input logic [255:0][11:0] exp_poly, output logic pass);
+    task automatic run_pass(
+        input integer idx,
+        input logic pass_mode,
+        input logic [255:0][11:0] in_poly,
+        input logic [255:0][11:0] exp_poly,
+        output logic pass,
+        input int report_fd
+    );
     begin
+        logic [255:0][11:0] result_poly;
+        string mode_str;
+        int mismatch_count;
+
+        mode_str = pass_mode ? "INTT" : "NTT";
+        mismatch_count = 0;
+
         @(posedge clk); #0.5;
-        rst_n = 1'b0; start = 1'b0; mode = pass_mode; ext_we = 1'b0; ext_addr = 8'd0; ext_din = 12'd0;
-        repeat(5) @(posedge clk); #0.5;
+        rst_n = 1'b0; start = 1'b0; mode = pass_mode;
+        ext_we = 1'b0; ext_addr = 8'd0; ext_din = 12'd0;
+        repeat (5) @(posedge clk); #0.5;
         rst_n = 1'b1;
-        repeat(2) @(posedge clk); #0.5;
+        repeat (2) @(posedge clk); #0.5;
 
-        for (int j = 0; j < 256; j++) begin
-            u_dut.u_mem.mem[j] = in_poly[j];
-        end
+        load_polynomial(in_poly);
 
-        pass = 1'b1;
         @(posedge clk); #0.5; start = 1'b1;
         @(posedge clk); #0.5; start = 1'b0;
 
-        safe_wait(3);
+        wait_for_done();
+
+        pass = 1'b1;
 
         if (timeout_flag) begin
-            $display("[%0t] FAIL: Case %0d - %s Done Timeout", $time, idx, pass_mode ? "INTT" : "NTT");
+            $display("[%0t] FAIL: Case %0d - %s TIMEOUT", $time, idx, mode_str);
+            if (report_fd != 0)
+                $fwrite(report_fd, "Case %0d | FAIL (TIMEOUT)\n", idx);
             pass = 1'b0;
         end else begin
+            read_polynomial(result_poly);
+
             for (int j = 0; j < 256; j++) begin
-                if (u_dut.u_mem.mem[j] !== exp_poly[j]) begin
-                    $display("[%0t] FAIL: Case %0d - %s coeff %0d mismatch: exp=%h, got=%h", $time, idx, pass_mode ? "INTT" : "NTT", j, exp_poly[j], u_dut.u_mem.mem[j]);
+                if (result_poly[j] !== exp_poly[j]) begin
+                    if (mismatch_count < 10)
+                        $display("[%0t] FAIL: Case %0d - %s coeff[%0d] exp=%03h got=%03h",
+                                 $time, idx, mode_str, j, exp_poly[j], result_poly[j]);
+                    if (report_fd != 0)
+                        $fwrite(report_fd, "  coeff[%0d] exp=%03h got=%03h\n",
+                                j, exp_poly[j], result_poly[j]);
+                    mismatch_count++;
                     pass = 1'b0;
                 end
             end
+
+            if (report_fd != 0) begin
+                if (pass)
+                    $fwrite(report_fd, "Case %0d | PASS\n", idx);
+                else
+                    $fwrite(report_fd, "Case %0d | FAIL (%0d mismatches)\n", idx, mismatch_count);
+            end
+
+            if (mismatch_count > 10)
+                $display("[%0t] ... and %0d more mismatches (Case %0d %s)",
+                         $time, mismatch_count - 10, idx, mode_str);
         end
     end
     endtask
 
-    task run_one_case(input integer idx);
+    task automatic run_roundtrip_test(input integer idx);
     begin
+        logic [255:0][11:0] ntt_result, intt_result;
         logic pass;
+        int mismatch_count;
 
-        run_pass(idx, 1'b0, vec_all[idx].poly, vec_all[idx].ntt, pass);
-        if (!pass) ntt_error_count++;
-        write_case_result(idx, 0, pass);
+        @(posedge clk); #0.5;
+        rst_n = 1'b0; start = 1'b0; mode = 1'b0;
+        ext_we = 1'b0; ext_addr = 8'd0; ext_din = 12'd0;
+        repeat (5) @(posedge clk); #0.5;
+        rst_n = 1'b1;
+        repeat (2) @(posedge clk); #0.5;
 
-        run_pass(idx, 1'b1, vec_all[idx].ntt, vec_all[idx].intt, pass);
-        if (!pass) intt_error_count++;
-        write_case_result(idx, 1, pass);
+        load_polynomial(vec_all[idx].poly);
+        @(posedge clk); #0.5; start = 1'b1;
+        @(posedge clk); #0.5; start = 1'b0;
+        wait_for_done();
+        if (timeout_flag) begin
+            $display("[%0t] ROUNDTRIP FAIL: Case %0d - NTT timeout", $time, idx);
+            roundtrip_error_count++;
+            return;
+        end
+        read_polynomial(ntt_result);
 
-        repeat(2) @(posedge clk);
+        @(posedge clk); #0.5;
+        rst_n = 1'b0; mode = 1'b1;
+        repeat (5) @(posedge clk); #0.5;
+        rst_n = 1'b1;
+        repeat (2) @(posedge clk); #0.5;
+
+        load_polynomial(ntt_result);
+        @(posedge clk); #0.5; start = 1'b1;
+        @(posedge clk); #0.5; start = 1'b0;
+        wait_for_done();
+        if (timeout_flag) begin
+            $display("[%0t] ROUNDTRIP FAIL: Case %0d - INTT timeout", $time, idx);
+            roundtrip_error_count++;
+            return;
+        end
+        read_polynomial(intt_result);
+
+        pass = 1'b1;
+        mismatch_count = 0;
+        for (int j = 0; j < 256; j++) begin
+            if (intt_result[j] !== vec_all[idx].intt[j]) begin
+                if (mismatch_count < 5)
+                    $display("[%0t] ROUNDTRIP FAIL: Case %0d coeff[%0d] exp=%03h got=%03h",
+                             $time, idx, j, vec_all[idx].intt[j], intt_result[j]);
+                mismatch_count++;
+                pass = 1'b0;
+            end
+        end
+        if (!pass) roundtrip_error_count++;
     end
     endtask
 
-    string tb_file, tb_dir, tv_dir, ntt_report_path, intt_report_path;
+    task automatic run_one_case(input integer idx);
+    begin
+        logic pass;
 
-    function automatic string dirname(string path);
-        for (int i = path.len() - 1; i >= 0; i--)
-            if (path[i] == "/" || path[i] == "\\") 
-                return path.substr(0, i - 1);
-        return ".";
-    endfunction
+        run_pass(idx, 1'b0, vec_all[idx].poly, vec_all[idx].ntt, pass, ntt_report_fd);
+        if (!pass) ntt_error_count++;
+
+        run_pass(idx, 1'b1, vec_all[idx].ntt, vec_all[idx].intt, pass, intt_report_fd);
+        if (!pass) intt_error_count++;
+
+        run_roundtrip_test(idx);
+
+        repeat (2) @(posedge clk);
+    end
+    endtask
 
     initial begin
         tb_file = `__FILE__;
@@ -127,7 +254,10 @@ module tb_ntt_core_top;
         ntt_report_path = {tb_dir, "/ntt_result.log"};
         intt_report_path = {tb_dir, "/intt_result.log"};
 
-        ntt_error_count = 0; intt_error_count = 0; rst_n = 0; start = 0; mode = 0; ext_we = 0; ext_addr = 0; ext_din = 0;
+        ntt_error_count = 0;
+        intt_error_count = 0;
+        roundtrip_error_count = 0;
+        rst_n = 0; start = 0; mode = 0; ext_we = 0; ext_addr = 0; ext_din = 0;
 
         ntt_report_fd = $fopen(ntt_report_path, "w");
         intt_report_fd = $fopen(intt_report_path, "w");
@@ -143,22 +273,33 @@ module tb_ntt_core_top;
         $fclose(spec_fd);
 
         if (tv_count_actual > MAX_BUFFER) begin
-            $display("ERROR: tv_count exceeds MAX_BUFFER");
+            $display("ERROR: tv_count=%0d exceeds MAX_BUFFER=%0d", tv_count_actual, MAX_BUFFER);
             $finish;
         end
 
         $readmemh({tv_dir, "/tv_all.mem"}, vec_all);
+        $display("NTT/INTT Core Testbench — %0d test vectors loaded", tv_count_actual);
 
         #100;
         @(posedge clk); #0.5; rst_n = 1'b1;
-        repeat(5) @(posedge clk);
+        repeat (5) @(posedge clk);
 
-        for (case_idx = 0; case_idx < tv_count_actual; case_idx = case_idx + 1) begin
+        for (case_idx = 0; case_idx < tv_count_actual; case_idx++) begin
+            $display("Case %0d / %0d", case_idx, tv_count_actual - 1);
             run_one_case(case_idx);
         end
 
-        $display(">>> NTT PASSED: %0d/%0d CASES (%0d ERRORS)", (tv_count_actual - ntt_error_count), tv_count_actual, ntt_error_count);
-        $display(">>> INTT PASSED: %0d/%0d CASES (%0d ERRORS)", (tv_count_actual - intt_error_count), tv_count_actual, intt_error_count);
+        $display(">>> NTT PASSED: %0d/%0d CASES (%0d ERRORS)",
+                tv_count_actual - ntt_error_count, tv_count_actual, ntt_error_count);
+        $display(">>> INTT PASSED: %0d/%0d CASES (%0d ERRORS)",
+                tv_count_actual - intt_error_count, tv_count_actual, intt_error_count);
+        $display(">>> ROUNDTRIP: %0d/%0d CASES (%0d ERRORS)",
+                tv_count_actual - roundtrip_error_count, tv_count_actual, roundtrip_error_count);
+
+        if (ntt_error_count == 0 && intt_error_count == 0 && roundtrip_error_count == 0)
+            $display("*** ALL TESTS PASSED ***");
+        else
+            $display("*** SOME TESTS FAILED ***");
 
         if (ntt_report_fd != 0) $fclose(ntt_report_fd);
         if (intt_report_fd != 0) $fclose(intt_report_fd);

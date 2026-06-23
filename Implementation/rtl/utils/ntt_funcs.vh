@@ -1,5 +1,3 @@
-// NOTE: include `ntt_defs.vh` from the calling module with a correct relative path
-
 // Modular add: (a + b) mod q
 function [`NTT_DATA_WIDTH-1:0] ntt_mod_add;
     input [`NTT_DATA_WIDTH-1:0] a;
@@ -28,7 +26,7 @@ function [`NTT_DATA_WIDTH-1:0] ntt_mod_sub;
     end
 endfunction
 
-// 12x12 multiplication using shift-add of partial products (avoids '*' operator)
+// 12x12 multiplication using shift-add of partial products 
 function [23:0] ntt_mul_12x12;
     input [11:0] a;
     input [11:0] b;
@@ -231,7 +229,7 @@ function signed [31:0] ntt_twiddle_entry;
     end
 endfunction
 
-// Selector: returns 16-bit signed twiddle; is_inv selects inverse part
+// Selector: returns 16-bit signed twiddle
 function signed [15:0] ntt_twiddle;
     input [6:0] addr;
     input is_inv;
@@ -266,5 +264,3 @@ function [`NTT_DATA_WIDTH-1:0] ntt_twiddle_u;
         ntt_twiddle_u = tw_u;
     end
 endfunction
-
-// End of ntt utility functions
