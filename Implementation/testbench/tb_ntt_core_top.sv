@@ -278,7 +278,7 @@ module tb_ntt_core_top;
         end
 
         $readmemh({tv_dir, "/tv_all.mem"}, vec_all);
-        $display("NTT/INTT Core Testbench — %0d test vectors loaded", tv_count_actual);
+        $display("NTT/INTT Core Testbench - %0d test vectors loaded", tv_count_actual);
 
         #100;
         @(posedge clk); #0.5; rst_n = 1'b1;
