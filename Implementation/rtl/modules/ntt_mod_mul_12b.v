@@ -37,9 +37,9 @@ module ntt_mod_mul_12b (
         end
     endgenerate
 
-    assign t_comb = pp[0] + pp[1] + pp[2] + pp[3] +
-                    pp[4] + pp[5] + pp[6] + pp[7] +
-                    pp[8] + pp[9] + pp[10]+ pp[11];
+    assign t_comb = ((pp[0] + pp[1]) + (pp[2] + pp[3])) +
+                    ((pp[4] + pp[5]) + (pp[6] + pp[7])) +
+                    ((pp[8] + pp[9]) + (pp[10] + pp[11]));
 
     always @(posedge clk) begin
         t_reg <= t_comb;
