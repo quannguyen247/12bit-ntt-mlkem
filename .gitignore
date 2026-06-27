@@ -11,6 +11,8 @@ Implementation/NTT.ip_user_files/
 Implementation/NTT.sim/
 Implementation/NTT.runs/
 Implementation/NTT.ioplanning/
+Implementation/NTT.srcs/
+Implementation/NTT.gen/
 
 # Simulation outputs & logs
 build/
@@ -36,6 +38,3 @@ __pycache__/
 
 # DFX
 dfx_runtime.txt
-
-# References
-form(donotedit)/
