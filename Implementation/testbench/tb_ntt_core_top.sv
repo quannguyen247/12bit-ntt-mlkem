@@ -141,9 +141,9 @@ module tb_ntt_core_top;
         pass = 1'b1;
 
         if (timeout_flag) begin
-            $display("[%0t] FAIL: Case %0d - %s TIMEOUT", $time, idx, mode_str);
+            $display("[%0t] FAIL: Case %0d - %s TIMEOUT", $time, idx + 1, mode_str);
             if (report_fd != 0)
-                $fwrite(report_fd, "Case %0d | FAIL (TIMEOUT)\n", idx);
+                $fwrite(report_fd, "Case %0d | FAIL (TIMEOUT)\n", idx + 1);
             pass = 1'b0;
         end else begin
             read_polynomial(result_poly);
@@ -152,7 +152,7 @@ module tb_ntt_core_top;
                 if (result_poly[j] !== exp_poly[j]) begin
                     if (mismatch_count < 10)
                         $display("[%0t] FAIL: Case %0d - %s coeff[%0d] exp=%03h got=%03h",
-                                 $time, idx, mode_str, j, exp_poly[j], result_poly[j]);
+                                 $time, idx + 1, mode_str, j, exp_poly[j], result_poly[j]);
                     if (report_fd != 0)
                         $fwrite(report_fd, "  coeff[%0d] exp=%03h got=%03h\n",
                                 j, exp_poly[j], result_poly[j]);
@@ -163,14 +163,14 @@ module tb_ntt_core_top;
 
             if (report_fd != 0) begin
                 if (pass)
-                    $fwrite(report_fd, "Case %0d | PASS\n", idx);
+                    $fwrite(report_fd, "Case %0d | PASS\n", idx + 1);
                 else
-                    $fwrite(report_fd, "Case %0d | FAIL (%0d mismatches)\n", idx, mismatch_count);
+                    $fwrite(report_fd, "Case %0d | FAIL (%0d mismatches)\n", idx + 1, mismatch_count);
             end
 
             if (mismatch_count > 10)
                 $display("[%0t] ... and %0d more mismatches (Case %0d %s)",
-                         $time, mismatch_count - 10, idx, mode_str);
+                         $time, mismatch_count - 10, idx + 1, mode_str);
         end
     end
     endtask
@@ -193,7 +193,7 @@ module tb_ntt_core_top;
         @(posedge clk); #0.5; start = 1'b0;
         wait_for_done();
         if (timeout_flag) begin
-            $display("[%0t] ROUNDTRIP FAIL: Case %0d - NTT timeout", $time, idx);
+            $display("[%0t] ROUNDTRIP FAIL: Case %0d - NTT timeout", $time, idx + 1);
             roundtrip_error_count++;
             return;
         end
@@ -210,7 +210,7 @@ module tb_ntt_core_top;
         @(posedge clk); #0.5; start = 1'b0;
         wait_for_done();
         if (timeout_flag) begin
-            $display("[%0t] ROUNDTRIP FAIL: Case %0d - INTT timeout", $time, idx);
+            $display("[%0t] ROUNDTRIP FAIL: Case %0d - INTT timeout", $time, idx + 1);
             roundtrip_error_count++;
             return;
         end
@@ -222,7 +222,7 @@ module tb_ntt_core_top;
             if (intt_result[j] !== vec_all[idx].intt[j]) begin
                 if (mismatch_count < 5)
                     $display("[%0t] ROUNDTRIP FAIL: Case %0d coeff[%0d] exp=%03h got=%03h",
-                             $time, idx, j, vec_all[idx].intt[j], intt_result[j]);
+                             $time, idx + 1, j, vec_all[idx].intt[j], intt_result[j]);
                 mismatch_count++;
                 pass = 1'b0;
             end
@@ -285,7 +285,7 @@ module tb_ntt_core_top;
         repeat (5) @(posedge clk);
 
         for (case_idx = 0; case_idx < tv_count_actual; case_idx++) begin
-            $display("Case %0d / %0d", case_idx, tv_count_actual - 1);
+            $display("Case %0d / %0d", case_idx + 1, tv_count_actual);
             run_one_case(case_idx);
         end
 
