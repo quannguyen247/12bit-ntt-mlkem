@@ -9,16 +9,6 @@ module ntt_mod_mul_12b (
 );
 
     wire [23:0] pp [0:11];
-    wire [23:0] sum_l0_0;
-    wire [23:0] sum_l0_1;
-    wire [23:0] sum_l0_2;
-    wire [23:0] sum_l0_3;
-    wire [23:0] sum_l0_4;
-    wire [23:0] sum_l0_5;
-    wire [23:0] sum_l1_0;
-    wire [23:0] sum_l1_1;
-    wire [23:0] sum_l1_2;
-    wire [23:0] sum_l2_0;
     wire [23:0] t_comb;
     reg [23:0] t_reg;
 
@@ -47,19 +37,9 @@ module ntt_mod_mul_12b (
         end
     endgenerate
 
-    assign sum_l0_0 = pp[0]  + pp[1];
-    assign sum_l0_1 = pp[2]  + pp[3];
-    assign sum_l0_2 = pp[4]  + pp[5];
-    assign sum_l0_3 = pp[6]  + pp[7];
-    assign sum_l0_4 = pp[8]  + pp[9];
-    assign sum_l0_5 = pp[10] + pp[11];
-
-    assign sum_l1_0 = sum_l0_0 + sum_l0_1;
-    assign sum_l1_1 = sum_l0_2 + sum_l0_3;
-    assign sum_l1_2 = sum_l0_4 + sum_l0_5;
-
-    assign sum_l2_0 = sum_l1_0 + sum_l1_1;
-    assign t_comb = sum_l2_0 + sum_l1_2;
+    assign t_comb = pp[0] + pp[1] + pp[2] + pp[3] +
+                    pp[4] + pp[5] + pp[6] + pp[7] +
+                    pp[8] + pp[9] + pp[10]+ pp[11];
 
     always @(posedge clk) begin
         t_reg <= t_comb;
